@@ -18,6 +18,9 @@ ATmega328p controls LEDs via ULN2803 driver,
 LEDs are connected from +9...12V to ULN2803 outputs
 through current limiters/drivers NSI45030AT1G (30 mA)
 
+Using Narcoleptic library is not necessary (could use simple delay() ) as power is supplied from a wall plug.
+TrueRandom library is great. A regular Random, even with re-seeding, does not produce anything remotely random.
+
 */
 
 #define MINUTE 60000L
