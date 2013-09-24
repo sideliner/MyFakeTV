@@ -1,6 +1,6 @@
 //used idea from http://forum.arduino.cc/index.php/topic,148967.0.html
 //heavily modified/tuned
-//used debounce code by Kenneth A. Kuhn
+//use of Narcoleptic library is not really beneficial here as power is supplied from a wall plug
 
 /*
 hardware setup:
@@ -23,8 +23,6 @@ through current limiters/drivers NSI45030AT1G (30 mA)
 #define SECOND 1000
 #define MINUTE 60000
 #define HOUR 3600000
-
-#define DEBOUNCE_COUNT_MAX  3    //debounce time o.3s * sample frequency 10Hz
 
 #include <Narcoleptic.h>
 #include <TrueRandom.h>
@@ -51,10 +49,6 @@ unsigned long currTime = 0;
 unsigned long prevTime = 0;
 unsigned int sensorCheckCounter = 0;
 unsigned int randomSwitch = 0;
-
-unsigned int calibrButtonInput;       //input signal from calibration button 
-unsigned int integrator;              //from 0 to DEBOUNCE_COUNT_MAX
-unsigned int calibrButtonOutput;      //debounced input signal from the button
 
 void setup() {
   pinMode(calibrButton,INPUT);
@@ -97,44 +91,18 @@ void loop() {
           prevTime = 0;
       }
       
-      calibrButtonInput = digitalRead(calibrButton);
-      calibrate(calibrButtonInput);
+      while (digitalRead(calibrButton) == LOW)
+      {
+          lumSensorValue = analogRead(1);
+          if(lumSensorValue < lumThreshold)
+          {
+              digitalWrite(ledBlue,HIGH);
+          }
+          delay(100);
+          switchOffLeds();
+      }
   }
   delay(100);
-}
-
-
-void calibrate(unsigned int buttonInput)
-{
-      //debouncing using integrator
-      if (buttonInput == 0)
-      {
-          if (integrator > 0)
-          {
-              integrator--;
-          }
-      } else if (integrator < DEBOUNCE_COUNT_MAX) {
-          integrator++;
-      }
-      
-      if (integrator == 0)
-      {
-          calibrButtonOutput = 0;
-          while (digitalRead(calibrButton) == LOW)
-          {
-              switchOffLeds();
-              lumSensorValue = analogRead(1);
-              if(lumSensorValue < lumThreshold)
-              {
-                  digitalWrite(ledBlue,HIGH);
-              }
-              delay(100);
-          }
-      } else if (integrator >= DEBOUNCE_COUNT_MAX) {
-          calibrButtonOutput = 1;
-          integrator = DEBOUNCE_COUNT_MAX;
-      }
-      switchOffLeds();
 }
 
 void switchOffLeds()
