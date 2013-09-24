@@ -1,5 +1,6 @@
 //used idea from http://forum.arduino.cc/index.php/topic,148967.0.html
 //heavily modified/tuned
+//used debounce code by Kenneth A. Kuhn
 
 /*
 hardware setup:
@@ -18,13 +19,12 @@ ATmega328p controls LEDs via ULN2803 driver,
 LEDs are connected from +9...12V to ULN2803 outputs
 through current limiters/drivers NSI45030AT1G (30 mA)
 
-Using Narcoleptic library is not necessary (could use simple delay() ) as power is supplied from a wall plug.
-TrueRandom library is great. A regular Random, even with re-seeding, does not produce anything remotely random.
-
 */
+#define SECOND 1000
+#define MINUTE 60000
+#define HOUR 3600000
 
-#define MINUTE 60000L
-#define HOUR 3600000L
+#define DEBOUNCE_COUNT_MAX  3    //debounce time o.3s * sample frequency 10Hz
 
 #include <Narcoleptic.h>
 #include <TrueRandom.h>
@@ -38,19 +38,23 @@ const int ledRed2 = 9;         // digital pin 9 / PWM
 const int ledWhite = 11;       // digital pin 11 / PWM
 const int ledWhiteBright = 4;  // digital pin 4 / on-off (no PWM)
 
-const int lumThreshold = 200;            //arbitrary sensor value threshold when it's considered "dark"
-const int sensorDebounceCount = 4;       //ambience dark for 4 consequetive sensor readings
+const unsigned int lumThreshold = 180;            //arbitrary sensor value threshold when it's considered "dark"
+const unsigned int sensorDebounceCount = 4;       //ambience dark for 4 consequetive sensor readings
 
-long sensorCheckInterval = MINUTE*1; //check sensor reading every 1 minute
-long onTime = HOUR*4;         //turn on TV/light for 4 hours
-long offTime = HOUR*16;       //turn off TV/light for 16 hours
+unsigned long sensorCheckInterval = MINUTE*1; //check sensor reading every 1 minute
+unsigned long onTime = HOUR*5;         //turn on TV/light for 5 hours
+unsigned long offTime = HOUR*16;
 
-volatile int lumSensorValue = 1023;      //highest possible (very bright ambience)
-int randpwm = 0;
-long currTime = 0;
-long prevTime = 0;
-int sensorCheckCounter = 0;
-int randomSwitch = 0;
+unsigned int lumSensorValue = 1023;      //highest possible (very bright ambience)
+unsigned int randpwm = 0;
+unsigned long currTime = 0;
+unsigned long prevTime = 0;
+unsigned int sensorCheckCounter = 0;
+unsigned int randomSwitch = 0;
+
+unsigned int calibrButtonInput;       //input signal from calibration button 
+unsigned int integrator;              //from 0 to DEBOUNCE_COUNT_MAX
+unsigned int calibrButtonOutput;      //debounced input signal from the button
 
 void setup() {
   pinMode(calibrButton,INPUT);
@@ -63,7 +67,6 @@ void setup() {
   pinMode(ledWhite,OUTPUT);
   pinMode(ledWhiteBright,OUTPUT);
   switchOffLeds();
-  attachInterrupt(0, calibrate, FALLING);
 }
 
 void loop() {
@@ -72,7 +75,7 @@ void loop() {
   if(currTime - prevTime >= sensorCheckInterval)
   {
       prevTime = currTime;
-      lumSensorValue = analogRead(A1);
+      lumSensorValue = analogRead(1);
       if (lumSensorValue < lumThreshold)
       {
           sensorCheckCounter++;
@@ -82,34 +85,56 @@ void loop() {
       
       if (sensorCheckCounter >= sensorDebounceCount)
       {
-        randomSwitch = TrueRandom.random(1,10);
-        if(randomSwitch > 3)
-        {
-            playScenes(currTime);
-        } else {
-            turnOnLight(currTime);
-        }
-        prevTime = 0;
-        switchOffLeds();
-        longDelay(offTime);
+          randomSwitch = TrueRandom.random(1,10);
+          if(randomSwitch > 3)
+          {
+              playScenes(currTime);
+          } else {
+              turnOnLight(currTime);
+          }
+          switchOffLeds();
+          longDelay(offTime);
+          prevTime = 0;
       }
+      
+      calibrButtonInput = digitalRead(calibrButton);
+      calibrate(calibrButtonInput);
   }
-  delay(MINUTE);
+  delay(100);
 }
 
 
-void calibrate() {
-  //generally, this is not a good example of using interrupts
-  //however, it fits well in this specific application
-  do {
-    switchOffLeds();
-    lumSensorValue = analogRead(A1);
-    if(lumSensorValue < lumThreshold)
-    {
-        digitalWrite(ledBlue,HIGH);
-    }
-    delay(10);
-  } while (digitalRead(calibrButton) == LOW);
+void calibrate(unsigned int buttonInput)
+{
+      //debouncing using integrator
+      if (buttonInput == 0)
+      {
+          if (integrator > 0)
+          {
+              integrator--;
+          }
+      } else if (integrator < DEBOUNCE_COUNT_MAX) {
+          integrator++;
+      }
+      
+      if (integrator == 0)
+      {
+          calibrButtonOutput = 0;
+          while (digitalRead(calibrButton) == LOW)
+          {
+              switchOffLeds();
+              lumSensorValue = analogRead(1);
+              if(lumSensorValue < lumThreshold)
+              {
+                  digitalWrite(ledBlue,HIGH);
+              }
+              delay(100);
+          }
+      } else if (integrator >= DEBOUNCE_COUNT_MAX) {
+          calibrButtonOutput = 1;
+          integrator = DEBOUNCE_COUNT_MAX;
+      }
+      switchOffLeds();
 }
 
 void switchOffLeds()
@@ -126,12 +151,13 @@ void switchOffLeds()
 void longDelay(long milliseconds)
 {
    while(milliseconds > 0) {
-      if(milliseconds > 8000) {
-         milliseconds -= 8000;
-         Narcoleptic.delay(8000);
+      if(milliseconds > 8000)
+      {
+          milliseconds -= 8000;
+          Narcoleptic.delay(8000);
       } else {
-        Narcoleptic.delay(milliseconds);
-        break;
+          Narcoleptic.delay(milliseconds);
+          break;
       }
    }
 }
@@ -174,86 +200,86 @@ void playScene1(int factor)
 // Changes random light levels and linger-times 
 // of all colors to simulate "normal" TV action
 {
-  analogWrite(ledRed1,TrueRandom.random(10*factor,128*factor)); 
-  analogWrite(ledRed2,TrueRandom.random(10*factor,128*factor)); 
-  analogWrite(ledGreen1,TrueRandom.random(10*factor,128*factor)); 
-  analogWrite(ledGreen2,TrueRandom.random(10*factor,128*factor)); 
-  analogWrite(ledBlue,TrueRandom.random(5*factor,112*factor)); 
-  analogWrite(ledWhite,TrueRandom.random(5*factor,90*factor));
-  delay(TrueRandom.random(500,2000));
+    analogWrite(ledRed1,TrueRandom.random(10*factor,128*factor)); 
+    analogWrite(ledRed2,TrueRandom.random(10*factor,128*factor)); 
+    analogWrite(ledGreen1,TrueRandom.random(10*factor,128*factor)); 
+    analogWrite(ledGreen2,TrueRandom.random(10*factor,128*factor)); 
+    analogWrite(ledBlue,TrueRandom.random(5*factor,112*factor)); 
+    analogWrite(ledWhite,TrueRandom.random(5*factor,90*factor));
+    delay(TrueRandom.random(500,2000));
 }
 
 void playScene2(int factor)
 // increases intensity of white,blue (fade-in)
 {
-  delay(1000);
-  for(int i=2;i<(127*factor);i++)
-  {
-    analogWrite(ledBlue,i); 
-    analogWrite(ledWhite,i);
-    delay(25);
-  }
+    delay(SECOND);
+    for(int i=2;i<(127*factor);i++)
+    {
+        analogWrite(ledBlue,i); 
+        analogWrite(ledWhite,i);
+        delay(25);
+    }
 }
 
 void playScene3(int factor)
 // flickers white,blue for a flickering scene effect
 {
-  boolean sw = HIGH;
-  for(int i=0;i<30;i++)
-  {
-    if (sw)
+    boolean sw = HIGH;
+    for(int i=0;i<30;i++)
     {
-        analogWrite(ledWhite,127*factor);
-        analogWrite(ledBlue,127*factor);
-    } else {
-        analogWrite(ledWhite,TrueRandom.random(2*factor,16*factor)); 
-        analogWrite(ledBlue,TrueRandom.random(2*factor,16*factor));
+        if (sw)
+        {
+            analogWrite(ledWhite,127*factor);
+            analogWrite(ledBlue,127*factor);
+        } else {
+            analogWrite(ledWhite,TrueRandom.random(2*factor,16*factor)); 
+            analogWrite(ledBlue,TrueRandom.random(2*factor,16*factor));
+        }
+        sw = !sw;
+        delay(TrueRandom.random(50,300));
     }
-    sw = !sw;
-    delay(TrueRandom.random(50,300));
-  }
 }
 
 void playScene4(int factor)
 // changes red/green light levels only
 // white/blue are almost off
 {
-  analogWrite(ledWhite,TrueRandom.random(2*factor,12*factor));
-  analogWrite(ledBlue,TrueRandom.random(2*factor,12*factor));
-  for(int i=0;i<12;i++)
-  {
-    analogWrite(ledRed1,TrueRandom.random(10*factor,127*factor)); 
-    analogWrite(ledRed2,TrueRandom.random(10*factor,127*factor)); 
-    analogWrite(ledGreen1,TrueRandom.random(10*factor,127*factor)); 
-    analogWrite(ledGreen2,TrueRandom.random(10*factor,127*factor)); 
-    delay(TrueRandom.random(200,2000));
-  }
+    analogWrite(ledWhite,TrueRandom.random(2*factor,12*factor));
+    analogWrite(ledBlue,TrueRandom.random(2*factor,12*factor));
+    for(int i=0;i<12;i++)
+    {
+        analogWrite(ledRed1,TrueRandom.random(10*factor,127*factor)); 
+        analogWrite(ledRed2,TrueRandom.random(10*factor,127*factor)); 
+        analogWrite(ledGreen1,TrueRandom.random(10*factor,127*factor)); 
+        analogWrite(ledGreen2,TrueRandom.random(10*factor,127*factor)); 
+        delay(TrueRandom.random(200,2000));
+    }
 }
 
 void playCommercial(int factor)
 // simulates a switch to or from a commercial break 
 {
-  analogWrite(ledRed1,TrueRandom.random(5*factor,10*factor)); 
-  analogWrite(ledRed2,TrueRandom.random(2*factor,8*factor)); 
-  analogWrite(ledGreen1,TrueRandom.random(2*factor,12*factor));
-  analogWrite(ledGreen2,TrueRandom.random(2*factor,8*factor));
-  analogWrite(ledBlue,TrueRandom.random(2*factor,6*factor));
-  digitalWrite(ledWhite,LOW);
-  delay(TrueRandom.random(1000,2500));
+    analogWrite(ledRed1,TrueRandom.random(5*factor,10*factor)); 
+    analogWrite(ledRed2,TrueRandom.random(2*factor,8*factor)); 
+    analogWrite(ledGreen1,TrueRandom.random(2*factor,12*factor));
+    analogWrite(ledGreen2,TrueRandom.random(2*factor,8*factor));
+    analogWrite(ledBlue,TrueRandom.random(2*factor,6*factor));
+    digitalWrite(ledWhite,LOW);
+    delay(TrueRandom.random(1000,2500));
 }
 
 void turnOnLight(long startTime)
 //white light with random variations
 {
-    do
+    while (millis() - startTime < onTime)
     {
         digitalWrite(ledWhiteBright,HIGH);
         digitalWrite(ledWhite,HIGH);
-        delay(60000);
+        delay(MINUTE);
         if (TrueRandom.random(1,5) == 1)  //variation in brightness
         {
             digitalWrite(ledWhite,LOW);
-            delay(3000);
+            delay(3*SECOND);
             digitalWrite(ledWhite,HIGH);
         }
         if (TrueRandom.random(1,5) == 1)  //variation in brightness
@@ -266,17 +292,17 @@ void turnOnLight(long startTime)
         if (TrueRandom.random(1,10) == 1)  //variation in brightness
         {
             digitalWrite(ledWhiteBright,LOW);
-            delay(3000);
+            delay(3*SECOND);
             digitalWrite(ledWhiteBright,HIGH);
         }
         if (TrueRandom.random(1,7) == 1)  //variation in brightness
         {
             digitalWrite(ledWhiteBright,LOW);
             digitalWrite(ledWhite,HIGH);
-            delay(7000);
+            delay(7*SECOND);
             digitalWrite(ledWhiteBright,HIGH);
             digitalWrite(ledWhite,LOW);
-            delay(12000);
+            delay(12*SECOND);
         }
         if (TrueRandom.random(1,8) == 1)  //variation in brightness
         {
@@ -285,5 +311,5 @@ void turnOnLight(long startTime)
                 analogWrite(ledWhite,i);
             }
         }
-    } while (millis() - startTime < onTime);
+    }
 }
