@@ -36,7 +36,7 @@ const int ledRed2 = 9;         // digital pin 9 / PWM
 const int ledWhite = 11;       // digital pin 11 / PWM
 const int ledWhiteBright = 4;  // digital pin 4 / on-off (no PWM)
 
-const unsigned int lumThreshold = 180;            //arbitrary sensor value threshold when it's considered "dark"
+const unsigned int lumThreshold = 150;            //arbitrary sensor value threshold when it's considered "dark"
 const unsigned int sensorDebounceCount = 4;       //ambience dark for 4 consequetive sensor readings
 
 unsigned long sensorCheckInterval = MINUTE*1; //check sensor reading every 1 minute
@@ -80,7 +80,7 @@ void loop() {
       if (sensorCheckCounter >= sensorDebounceCount)
       {
           randomSwitch = TrueRandom.random(1,10);
-          if(randomSwitch > 3)
+          if(randomSwitch > 4)
           {
               playScenes(currTime);
           } else {
