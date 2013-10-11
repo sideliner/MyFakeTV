@@ -132,7 +132,7 @@ void longDelay(long milliseconds)
 
 void playScenes(long startTime)
 {
-    int brightnessFactor = 2;        //reduced to 1 when it gets very dark
+    int brightnessFactor = 2;        //reduced to 1 after 1 hour
     while (millis() - startTime < onTime)
     {
         for(int i=0;i<10;i++)  //play scene 1 multiple times
@@ -168,12 +168,12 @@ void playScene1(int factor)
 // Changes random light levels and linger-times 
 // of all colors to simulate "normal" TV action
 {
-    analogWrite(ledRed1,TrueRandom.random(10*factor,128*factor)); 
-    analogWrite(ledRed2,TrueRandom.random(10*factor,128*factor)); 
-    analogWrite(ledGreen1,TrueRandom.random(10*factor,128*factor)); 
-    analogWrite(ledGreen2,TrueRandom.random(10*factor,128*factor)); 
+    analogWrite(ledRed1,TrueRandom.random(10*factor,127*factor)); 
+    analogWrite(ledRed2,TrueRandom.random(10*factor,127*factor)); 
+    analogWrite(ledGreen1,TrueRandom.random(10*factor,127*factor)); 
+    analogWrite(ledGreen2,TrueRandom.random(10*factor,127*factor)); 
     analogWrite(ledBlue,TrueRandom.random(5*factor,112*factor)); 
-    analogWrite(ledWhite,TrueRandom.random(5*factor,90*factor));
+    analogWrite(ledWhite,TrueRandom.random(20*factor,90*factor));
     delay(TrueRandom.random(500,2000));
 }
 
@@ -198,10 +198,10 @@ void playScene3(int factor)
         if (sw)
         {
             analogWrite(ledWhite,127*factor);
-            analogWrite(ledBlue,127*factor);
+            analogWrite(ledBlue,80*factor);
         } else {
-            analogWrite(ledWhite,TrueRandom.random(2*factor,16*factor)); 
-            analogWrite(ledBlue,TrueRandom.random(2*factor,16*factor));
+            analogWrite(ledWhite,TrueRandom.random(4*factor,16*factor)); 
+            analogWrite(ledBlue,TrueRandom.random(4*factor,12*factor));
         }
         sw = !sw;
         delay(TrueRandom.random(50,300));
@@ -212,14 +212,14 @@ void playScene4(int factor)
 // changes red/green light levels only
 // white/blue are almost off
 {
-    analogWrite(ledWhite,TrueRandom.random(2*factor,12*factor));
+    analogWrite(ledWhite,TrueRandom.random(12*factor,32*factor));
     analogWrite(ledBlue,TrueRandom.random(2*factor,12*factor));
     for(int i=0;i<12;i++)
     {
-        analogWrite(ledRed1,TrueRandom.random(10*factor,127*factor)); 
-        analogWrite(ledRed2,TrueRandom.random(10*factor,127*factor)); 
-        analogWrite(ledGreen1,TrueRandom.random(10*factor,127*factor)); 
-        analogWrite(ledGreen2,TrueRandom.random(10*factor,127*factor)); 
+        analogWrite(ledRed1,TrueRandom.random(20*factor,110*factor)); 
+        analogWrite(ledRed2,TrueRandom.random(20*factor,110*factor)); 
+        analogWrite(ledGreen1,TrueRandom.random(20*factor,110*factor)); 
+        analogWrite(ledGreen2,TrueRandom.random(20*factor,110*factor)); 
         delay(TrueRandom.random(200,2000));
     }
 }
@@ -227,9 +227,9 @@ void playScene4(int factor)
 void playCommercial(int factor)
 // simulates a switch to or from a commercial break 
 {
-    analogWrite(ledRed1,TrueRandom.random(5*factor,10*factor)); 
+    analogWrite(ledRed1,TrueRandom.random(5*factor,9*factor)); 
     analogWrite(ledRed2,TrueRandom.random(2*factor,8*factor)); 
-    analogWrite(ledGreen1,TrueRandom.random(2*factor,12*factor));
+    analogWrite(ledGreen1,TrueRandom.random(2*factor,8*factor));
     analogWrite(ledGreen2,TrueRandom.random(2*factor,8*factor));
     analogWrite(ledBlue,TrueRandom.random(2*factor,6*factor));
     digitalWrite(ledWhite,LOW);
@@ -237,7 +237,8 @@ void playCommercial(int factor)
 }
 
 void turnOnLight(long startTime)
-//white light with random variations
+//simulates a reading light with random variations
+//(person moving around)
 {
     while (millis() - startTime < onTime)
     {
